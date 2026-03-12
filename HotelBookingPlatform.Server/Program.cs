@@ -35,6 +35,18 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+builder.Services.AddCors(options => {
+  options.AddPolicy("AllowReactApp", policy => {
+    policy.WithOrigins(
+              "http://localhost:52126", "https://localhost:52126",
+              "http://localhost:52127", "https://localhost:52127",
+              "http://localhost:52128", "https://localhost:52128")
+          .AllowAnyMethod()
+          .AllowAnyHeader()
+          .AllowCredentials();
+  })
+})
+
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
 var key = Encoding.ASCII.GetBytes(jwtKey);
@@ -104,16 +116,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // Add CORS policy to allow React frontend
-app.UseCors(policy =>
-{
-    policy.WithOrigins(
-              "http://localhost:52126", "https://localhost:52126",
-              "http://localhost:52127", "https://localhost:52127",
-              "http://localhost:52128", "https://localhost:52128")
-          .AllowAnyMethod()
-          .AllowAnyHeader()
-          .AllowCredentials();
-});
+app.UseCors("AllowReactApp");
 
 app.UseAuthentication();
 app.UseAuthorization();
