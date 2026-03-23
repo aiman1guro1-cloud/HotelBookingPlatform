@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HotelBookingPlatform.Core.Entities;
 using HotelBookingPlatform.Core.DTOs;
 using HotelBookingPlatform.Core.Enums;  // ADD THIS LINE
@@ -9,14 +9,22 @@ public class MappingProfile : Profile
 {
     public MappingProfile()
     {
+        // User mappings
+        CreateMap<User, UserProfileDto>();
+        CreateMap<UpdateUserProfileDto, User>();
+        CreateMap<UserPaymentMethod, UserPaymentMethodDto>();
+        CreateMap<AddPaymentMethodDto, UserPaymentMethod>();
+
         // Hotel mappings
         CreateMap<Hotel, HotelDto>()
             .ForMember(dest => dest.PricePerNight,
-                opt => opt.MapFrom(src => src.Rooms.Any() ? src.Rooms.Min(r => r.PricePerNight) : 0));
+                opt => opt.MapFrom(src => src.Rooms.Any() ? src.Rooms.Min(r => r.PricePerNight) : 0))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
 
         CreateMap<Hotel, HotelDetailDto>()
             .ForMember(dest => dest.Amenities,
-                opt => opt.MapFrom(src => src.Amenities.Select(a => a.Name).ToList()));
+                opt => opt.MapFrom(src => src.Amenities.Select(a => a.Name).ToList()))
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
 
         // Room mappings
         CreateMap<Room, RoomDto>()
@@ -25,7 +33,7 @@ public class MappingProfile : Profile
 
         CreateMap<Room, RoomDetailDto>()
             .ForMember(dest => dest.Amenities,
-                opt => opt.MapFrom(src => src.RoomAmenities.Select(ra => ra.Name).ToList()));
+                opt => opt.MapFrom(src => src.RoomAmenities.Select(ra => ra.Amenity != null ? ra.Amenity.Name : string.Empty).ToList()));
 
         // Review mappings
         CreateMap<Review, ReviewDto>()

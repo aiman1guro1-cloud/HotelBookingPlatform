@@ -1,16 +1,40 @@
-import { useState } from 'react';
-import { Search, Calendar, MapPin, Users } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Calendar, MapPin, Users, Star } from 'lucide-react';
+import { getHotels } from '../services/hotelService';
+import { useNavigate } from 'react-router-dom';
 import './Home.css';
 
 const Home = () => {
     const [destination, setDestination] = useState('');
+    const [hotels, setHotels] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const navigate = useNavigate();
+
+    useEffect(() => {
+        fetchHotels();
+        
+        // Polling for real-time synchronization (every 30 seconds)
+        const interval = setInterval(fetchHotels, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    const fetchHotels = async () => {
+        try {
+            // Fetch all approved hotels
+            const response = await getHotels({ status: 'Approved' });
+            setHotels(response.data || []);
+        } catch (error) {
+            console.error("Error fetching hotels:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     return (
         <div className="home-page">
             {/* Hero Section */}
             <section className="hero">
                 <div className="hero-background animate-fade-in">
-                    {/* We'll use a CSS gradient/image mix for the premium look */}
                     <div className="hero-overlay"></div>
                 </div>
 
@@ -26,7 +50,6 @@ const Home = () => {
                     {/* Search Glass Card */}
                     <div className="search-bar glass-card">
                         <div className="search-inputs">
-
                             <div className="search-field">
                                 <MapPin className="search-icon" size={20} />
                                 <div className="field-group">
@@ -39,9 +62,7 @@ const Home = () => {
                                     />
                                 </div>
                             </div>
-
                             <div className="search-divider"></div>
-
                             <div className="search-field">
                                 <Calendar className="search-icon" size={20} />
                                 <div className="field-group">
@@ -49,9 +70,7 @@ const Home = () => {
                                     <input type="text" placeholder="Add dates" />
                                 </div>
                             </div>
-
                             <div className="search-divider"></div>
-
                             <div className="search-field">
                                 <Users className="search-icon" size={20} />
                                 <div className="field-group">
@@ -59,40 +78,68 @@ const Home = () => {
                                     <input type="text" placeholder="1 guest, 1 room" />
                                 </div>
                             </div>
-
                             <button className="btn btn-primary search-btn">
                                 <Search size={20} />
                                 <span>Search</span>
                             </button>
-
                         </div>
                     </div>
                 </div>
             </section>
 
-            {/* Featured Section placeholder */}
+            {/* Dynamic Hotel Listing Section */}
             <section className="featured-section container">
-                <h2 className="section-title">Trending Destinations</h2>
-                <p className="section-subtitle mb-8">Most popular choices for travelers from around the world</p>
+                <h2 className="section-title">Explore Our <span className="text-gradient">Hotels</span></h2>
+                <p className="section-subtitle mb-8">Hand-picked properties approved by our administration for your comfort</p>
 
-                <div className="featured-grid">
-                    {/* Placeholder cards to show the design */}
-                    {[1, 2, 3, 4].map((item) => (
-                        <div key={item} className="hotel-card glass-card">
-                            <div className="card-image-placeholder"></div>
-                            <div className="card-content">
-                                <div className="card-header">
-                                    <h3>Luxury Villa {item}</h3>
-                                    <div className="rating">★ 4.9</div>
+                {loading ? (
+                    <div className="loading-state">
+                        <div className="loader"></div>
+                        <p>Loading amazing stays...</p>
+                    </div>
+                ) : hotels.length === 0 ? (
+                    <div className="empty-state glass-card">
+                        <p>No hotels available at the moment. Please check back later!</p>
+                    </div>
+                ) : (
+                    <div className="featured-grid">
+                        {hotels.map((hotel) => (
+                            <div 
+                                key={hotel.id} 
+                                className="hotel-card glass-card animate-fade-in"
+                                onClick={() => navigate(`/hotels/${hotel.id}`)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <div 
+                                    className="card-image-box"
+                                    style={{ 
+                                        backgroundImage: `url(${hotel.mainImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800'})`,
+                                        backgroundSize: 'cover',
+                                        backgroundPosition: 'center',
+                                        height: '200px'
+                                    }}
+                                >
+                                    <div className="card-badge">{hotel.status}</div>
                                 </div>
-                                <p className="location">Bali, Indonesia</p>
-                                <div className="price-tag mt-4">
-                                    <span className="price">$250</span> / night
+                                <div className="card-content">
+                                    <div className="card-header">
+                                        <h3>{hotel.name}</h3>
+                                        <div className="rating">
+                                            <Star size={14} fill="currentColor" />
+                                            <span>{hotel.starRating}.0</span>
+                                        </div>
+                                    </div>
+                                    <p className="location">
+                                        <MapPin size={14} /> {hotel.city}, {hotel.country}
+                                    </p>
+                                    <div className="price-tag mt-4">
+                                        <span className="price">₱{(hotel.pricePerNight || 0).toLocaleString()}</span> / night
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                )}
             </section>
         </div>
     );

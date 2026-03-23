@@ -1,4 +1,4 @@
-﻿using AutoMapper;
+using AutoMapper;
 using HotelBookingPlatform.Core.DTOs;
 using HotelBookingPlatform.Core.Entities;
 using HotelBookingPlatform.Core.Enums;
@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
+using HotelBookingPlatform.Services.Auth;
 
 namespace HotelBookingPlatform.Server.Controllers;
 
@@ -17,21 +18,23 @@ public class BookingsController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IMapper _mapper;
+    private readonly IAuditLogService _auditLogService;
 
-    public BookingsController(ApplicationDbContext context, IMapper mapper)
+    public BookingsController(ApplicationDbContext context, IMapper mapper, IAuditLogService auditLogService)
     {
         _context = context;
         _mapper = mapper;
+        _auditLogService = auditLogService;
     }
 
     private int GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        if (userIdClaim == null)
+        if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out var userId))
         {
-            throw new UnauthorizedAccessException("User not authenticated");
+            throw new UnauthorizedAccessException("User not authenticated or invalid user ID");
         }
-        return int.Parse(userIdClaim.Value);
+        return userId;
     }
 
     // GET: api/Bookings/my  (returns current authenticated user's bookings)
@@ -42,9 +45,9 @@ public class BookingsController : ControllerBase
         try
         {
             var userId = GetCurrentUserId();
-            var bookings = await _context.Bookings
+            var bookings = await _context.Bookings!
                 .Include(b => b.Room)
-                    .ThenInclude(r => r.Hotel)
+                    .ThenInclude(r => r!.Hotel)
                 .Where(b => b.UserId == userId)
                 .OrderByDescending(b => b.CreatedAt)
                 .ToListAsync();
@@ -59,16 +62,98 @@ public class BookingsController : ControllerBase
     // GET: api/Bookings/all  (Admin only — returns all users' bookings)
     [HttpGet("all")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<IEnumerable<AdminBookingResponseDto>>> GetAllBookings()
+    public async Task<ActionResult<IEnumerable<AdminBookingResponseDto>>> GetAllBookings(
+        [FromQuery] string? hotelName,
+        [FromQuery] string? guestEmail,
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? status)
     {
-        var bookings = await _context.Bookings
+        var query = _context.Bookings!
             .Include(b => b.User)
             .Include(b => b.Room)
-                .ThenInclude(r => r.Hotel)
+                .ThenInclude(r => r!.Hotel)
+            .AsQueryable();
+
+        if (!string.IsNullOrEmpty(hotelName))
+            query = query.Where(b => b.Room != null && b.Room.Hotel != null && b.Room.Hotel.Name.Contains(hotelName));
+
+        if (!string.IsNullOrEmpty(guestEmail))
+            query = query.Where(b => b.User != null && b.User.Email != null && b.User.Email.Contains(guestEmail));
+
+        if (startDate.HasValue)
+            query = query.Where(b => b.CheckInDate >= startDate.Value);
+
+        if (endDate.HasValue)
+            query = query.Where(b => b.CheckOutDate <= endDate.Value);
+
+        if (!string.IsNullOrEmpty(status))
+        {
+            if (Enum.TryParse<BookingStatus>(status, true, out var bookingStatus))
+                query = query.Where(b => b.Status == bookingStatus);
+        }
+
+        var bookings = await query
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync();
 
         return Ok(_mapper.Map<IEnumerable<AdminBookingResponseDto>>(bookings));
+    }
+
+    [HttpGet("analytics")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> GetAnalytics()
+    {
+        var totalRevenue = await _context.Bookings
+            .Where(b => b.Status != BookingStatus.Cancelled)
+            .SumAsync(b => b.TotalPrice);
+
+        var totalBookings = await _context.Bookings.CountAsync();
+        
+        var bookingsByStatus = await _context.Bookings
+            .GroupBy(b => b.Status)
+            .Select(g => new { Status = g.Key.ToString(), Count = g.Count() })
+            .ToListAsync();
+
+        var bookingsByMonth = await _context.Bookings
+            .GroupBy(b => new { b.CreatedAt.Year, b.CreatedAt.Month })
+            .Select(g => new { 
+                Date = $"{g.Key.Year}-{g.Key.Month:D2}", 
+                Count = g.Count(),
+                Revenue = g.Sum(b => b.TotalPrice)
+            })
+            .OrderBy(g => g.Date)
+            .ToListAsync();
+
+        return Ok(new {
+            totalRevenue,
+            totalBookings,
+            bookingsByStatus,
+            bookingsByMonth
+        });
+    }
+
+    [HttpGet("export-csv")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> ExportToCsv()
+    {
+        var bookings = await _context.Bookings!
+            .Include(b => b.User)
+            .Include(b => b.Room)
+                .ThenInclude(r => r!.Hotel)
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync();
+
+        var csv = new System.Text.StringBuilder();
+        csv.AppendLine("Reference,Hotel,Guest,Email,CheckIn,CheckOut,Status,Amount");
+
+        foreach (var b in bookings)
+        {
+            csv.AppendLine($"{b.BookingReference},{b.Room?.Hotel?.Name ?? "N/A"},{b.User?.FirstName ?? "N/A"} {b.User?.LastName ?? "N/A"},{b.User?.Email ?? "N/A"},{b.CheckInDate:yyyy-MM-dd},{b.CheckOutDate:yyyy-MM-dd},{b.Status},{b.TotalPrice}");
+        }
+
+        await _auditLogService.LogAsync("ExportToCsv", "Bookings", "Exported booking history to CSV");
+        return File(System.Text.Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"bookings_{DateTime.Now:yyyyMMdd}.csv");
     }
 
     // GET: api/Bookings/user/5  (own data for users, any userId for admins)
@@ -92,9 +177,9 @@ public class BookingsController : ControllerBase
             }
         }
 
-        var bookings = await _context.Bookings
+        var bookings = await _context.Bookings!
             .Include(b => b.Room)
-                .ThenInclude(r => r.Hotel)
+                .ThenInclude(r => r!.Hotel)
             .Where(b => b.UserId == userId)
             .OrderByDescending(b => b.CreatedAt)
             .ToListAsync();
@@ -104,11 +189,12 @@ public class BookingsController : ControllerBase
 
     // GET: api/Bookings/5
     [HttpGet("{id}")]
+    [Authorize]
     public async Task<ActionResult<BookingResponseDto>> GetBooking(int id)
     {
-        var booking = await _context.Bookings
+        var booking = await _context.Bookings!
             .Include(b => b.Room)
-                .ThenInclude(r => r.Hotel)
+                .ThenInclude(r => r!.Hotel)
             .FirstOrDefaultAsync(b => b.Id == id);
 
         if (booking == null)
@@ -116,12 +202,20 @@ public class BookingsController : ControllerBase
             return NotFound();
         }
 
+        // Only owner or admin can view specific booking details
+        var userId = GetCurrentUserId();
+        var isAdmin = User.IsInRole("Admin");
+        if (booking.UserId != userId && !isAdmin)
+        {
+            return Forbid();
+        }
+
         return Ok(_mapper.Map<BookingResponseDto>(booking));
     }
 
     // POST: api/Bookings
     [HttpPost]
-    //[Authorize]
+    [Authorize]
     public async Task<ActionResult<object>> CreateBooking(CreateBookingDto bookingDto)
     {
         try
@@ -213,6 +307,7 @@ public class BookingsController : ControllerBase
 
     // PUT: api/Bookings/5/cancel  (cancel by integer id)
     [HttpPut("{id:int}/cancel")]
+    [Authorize]
     public async Task<IActionResult> CancelBooking(int id)
     {
         var booking = await _context.Bookings.FindAsync(id);
@@ -220,6 +315,14 @@ public class BookingsController : ControllerBase
         if (booking == null)
         {
             return NotFound();
+        }
+
+        // Only owner or admin can cancel
+        var userId = GetCurrentUserId();
+        var isAdmin = User.IsInRole("Admin");
+        if (booking.UserId != userId && !isAdmin)
+        {
+            return Forbid();
         }
 
         // Can only cancel pending or confirmed bookings
@@ -244,8 +347,9 @@ public class BookingsController : ControllerBase
         return NoContent();
     }
 
-    // PUT: api/Bookings/HBP-A1B2C3/cancel  (cancel by booking reference string)
+    // PUT: api/Bookings/ABC-123/cancel (cancel by reference string)
     [HttpPut("{reference}/cancel")]
+    [Authorize]
     public async Task<IActionResult> CancelBookingByReference(string reference)
     {
         var booking = await _context.Bookings
@@ -254,6 +358,14 @@ public class BookingsController : ControllerBase
         if (booking == null)
         {
             return NotFound();
+        }
+
+        // Only owner or admin can cancel
+        var userId = GetCurrentUserId();
+        var isAdmin = User.IsInRole("Admin");
+        if (booking.UserId != userId && !isAdmin)
+        {
+            return Forbid();
         }
 
         if (booking.Status == BookingStatus.Cancelled ||

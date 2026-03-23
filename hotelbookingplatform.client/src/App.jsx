@@ -11,6 +11,7 @@ import ResetPassword from './pages/ResetPassword';
 import About from './pages/About';
 import Hotels from './pages/Hotels';
 import HotelDetail from './pages/HotelDetail';
+import AccountSettings from './pages/AccountSettings';
 
 // Protected Pages
 import Checkout from './pages/Checkout';
@@ -48,6 +49,14 @@ function App() {
                         element={
                             <PrivateRoute>
                                 <Dashboard />
+                            </PrivateRoute>
+                        }
+                    />
+                    <Route
+                        path="settings"
+                        element={
+                            <PrivateRoute>
+                                <AccountSettings />
                             </PrivateRoute>
                         }
                     />

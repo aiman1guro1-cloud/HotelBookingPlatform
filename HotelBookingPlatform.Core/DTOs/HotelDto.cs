@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace HotelBookingPlatform.Core.DTOs;
 
@@ -11,6 +11,8 @@ public class HotelDto
     public string Country { get; set; } = string.Empty;
     public int StarRating { get; set; }
     public string? MainImageUrl { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public int? OwnerId { get; set; }
     public decimal PricePerNight { get; set; } // Average price
     public List<RoomDto> Rooms { get; set; } = new();
 }
@@ -44,6 +46,26 @@ public class CreateHotelDto
     public string? CheckInTime { get; set; } = "15:00";
     public string? CheckOutTime { get; set; } = "11:00";
     public string? MainImageUrl { get; set; }
+}
+
+public class CreateFullHotelDto : CreateHotelDto
+{
+    public List<CreateRoomDto> Rooms { get; set; } = new();
+    public List<int> AmenityIds { get; set; } = new();
+}
+
+public class CreateRoomDto
+{
+    [Required]
+    public string RoomNumber { get; set; } = string.Empty;
+    [Required]
+    public string RoomType { get; set; } = string.Empty;
+    [Required]
+    public decimal PricePerNight { get; set; }
+    [Required]
+    public int Capacity { get; set; }
+    public bool IsAvailable { get; set; } = true;
+    public List<int> AmenityIds { get; set; } = new();
 }
 
 public class UpdateHotelDto

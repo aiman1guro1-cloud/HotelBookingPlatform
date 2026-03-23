@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import {
     Hotel, Bed, BookOpen, TrendingUp, PlusCircle, Trash2, Edit3,
     Eye, ChevronRight, LayoutDashboard, Users, LogOut, X, Save,
+    CheckCircle, ShieldAlert, Zap, Layers, Grid, Upload, Image as ImageIcon
 } from 'lucide-react';
 import { getAllBookings } from '../services/bookingService';
-import { getHotels, createHotel, updateHotel, deleteHotel } from '../services/hotelService';
+import { getHotels, createHotel, updateHotel, deleteHotel, deleteAllHotels, deleteNonAdminHotels, getAmenities, uploadHotelImage } from '../services/hotelService';
 import useAuthStore from '../stores/useAuthStore';
 import './AdminDashboard.css';
 
@@ -19,6 +20,13 @@ const EMPTY_HOTEL_FORM = {
     name: '', description: '', address: '', city: '', country: '',
     postalCode: '', starRating: 3, phoneNumber: '', email: '',
     website: '', checkInTime: '15:00', checkOutTime: '11:00', mainImageUrl: '',
+    amenityIds: [],
+    rooms: []
+};
+
+const EMPTY_ROOM_FORM = {
+    roomNumber: '', roomType: 'Standard', pricePerNight: 100,
+    capacity: 2, isAvailable: true, amenityIds: []
 };
 
 const AdminDashboard = () => {
@@ -29,34 +37,52 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview');
     const [deletingId, setDeletingId] = useState(null);
+    const [isResetting, setIsResetting] = useState(false);
+    const [amenitiesList, setAmenitiesList] = useState([]);
 
     // Modal state
     const [showModal, setShowModal] = useState(false);
-    const [editingHotel, setEditingHotel] = useState(null); // null = add mode, object = edit mode
+    const [wizardStep, setWizardStep] = useState(1); // 1=Basic, 2=Rooms/Amenities
+    const [editingHotel, setEditingHotel] = useState(null); 
     const [hotelForm, setHotelForm] = useState(EMPTY_HOTEL_FORM);
+    const [roomForm, setRoomForm] = useState(EMPTY_ROOM_FORM);
+    const [imageFile, setImageFile] = useState(null);
+    const [imagePreview, setImagePreview] = useState(null);
     const [saving, setSaving] = useState(false);
     const [formError, setFormError] = useState('');
 
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            try {
-                const [hotelsRes, bookingsRes] = await Promise.all([getHotels(), getAllBookings()]);
-                setHotels(hotelsRes.data || []);
-                setBookings(bookingsRes.data || []);
-            } catch {
-                setHotels([]);
-                setBookings([]);
-            } finally {
-                setLoading(false);
-            }
-        };
         fetchData();
+        loadAmenities();
     }, []);
+
+    const fetchData = async () => {
+        setLoading(true);
+        try {
+            const [hotelsRes, bookingsRes] = await Promise.all([getHotels({ status: 'Approved' }), getAllBookings()]);
+            setHotels(hotelsRes.data || []);
+            setBookings(bookingsRes.data || []);
+        } catch {
+            setHotels([]);
+            setBookings([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const loadAmenities = async () => {
+        try {
+            const res = await getAmenities();
+            setAmenitiesList(res.data || []);
+        } catch (err) {
+            console.error("Failed to load amenities", err);
+        }
+    };
 
     const openAddModal = () => {
         setEditingHotel(null);
         setHotelForm(EMPTY_HOTEL_FORM);
+        setWizardStep(1);
         setFormError('');
         setShowModal(true);
     };
@@ -86,7 +112,26 @@ const AdminDashboard = () => {
         setShowModal(false);
         setEditingHotel(null);
         setHotelForm(EMPTY_HOTEL_FORM);
+        setImageFile(null);
+        setImagePreview(null);
         setFormError('');
+    };
+
+    const handleImageChange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (file.size > 5 * 1024 * 1024) {
+            alert("File size exceeds 5MB limit.");
+            return;
+        }
+
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setImagePreview(reader.result);
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleFormChange = (e) => {
@@ -94,24 +139,137 @@ const AdminDashboard = () => {
         setHotelForm(prev => ({ ...prev, [name]: value }));
     };
 
+    const handleRoomChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setRoomForm(prev => ({ 
+            ...prev, 
+            [name]: type === 'checkbox' ? checked : (name === 'capacity' || name === 'pricePerNight' ? Number(value) : value)
+        }));
+    };
+
+    const toggleHotelAmenity = (id) => {
+        setHotelForm(prev => ({
+            ...prev,
+            amenityIds: prev.amenityIds.includes(id) 
+                ? prev.amenityIds.filter(a => a !== id)
+                : [...prev.amenityIds, id]
+        }));
+    };
+
+    const toggleRoomAmenity = (id) => {
+        setRoomForm(prev => ({
+            ...prev,
+            amenityIds: prev.amenityIds.includes(id) 
+                ? prev.amenityIds.filter(a => a !== id)
+                : [...prev.amenityIds, id]
+        }));
+    };
+
+    const addRoomToHotel = () => {
+        if (!roomForm.roomNumber || !roomForm.pricePerNight) {
+            alert("Room number and price are required.");
+            return;
+        }
+        setHotelForm(prev => ({
+            ...prev,
+            rooms: [...prev.rooms, { ...roomForm }]
+        }));
+        setRoomForm(EMPTY_ROOM_FORM);
+    };
+
+    const removeRoom = (index) => {
+        setHotelForm(prev => ({
+            ...prev,
+            rooms: prev.rooms.filter((_, i) => i !== index)
+        }));
+    };
+
     const handleSaveHotel = async (e) => {
         e.preventDefault();
+        
+        if (!editingHotel && wizardStep === 1) {
+            setWizardStep(2);
+            return;
+        }
+
         setSaving(true);
         setFormError('');
         try {
-            const payload = { ...hotelForm, starRating: Number(hotelForm.starRating) };
+            let finalImageUrl = hotelForm.mainImageUrl;
+
+            // If a file is selected, upload it first
+            if (imageFile) {
+                const formData = new FormData();
+                formData.append('file', imageFile);
+                const uploadRes = await uploadHotelImage(formData);
+                finalImageUrl = `https://localhost:7240${uploadRes.data.imageUrl}`;
+            }
+
+            if (!finalImageUrl) {
+                throw new Error("Please provide an image URL or upload an image.");
+            }
+
+            const payload = { 
+                ...hotelForm, 
+                mainImageUrl: finalImageUrl,
+                starRating: Number(hotelForm.starRating),
+            };
+            
             if (editingHotel) {
                 const res = await updateHotel(editingHotel.id, payload);
                 setHotels(prev => prev.map(h => h.id === editingHotel.id ? res.data : h));
             } else {
+                if (hotelForm.rooms.length === 0) {
+                    throw new Error("Please add at least one room to the hotel.");
+                }
                 const res = await createHotel(payload);
                 setHotels(prev => [...prev, res.data]);
             }
             closeModal();
         } catch (err) {
-            setFormError(err?.response?.data?.message || 'Failed to save hotel. Check all fields and try again.');
+            setFormError(err?.message || err?.response?.data?.message || 'Failed to save hotel.');
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleResetSystem = async () => {
+        const confirmed = window.confirm(
+            "⚠️ DANGER: This will delete ALL hotels, rooms, and bookings from the database. " +
+            "This action is permanent and will be logged. Continue?"
+        );
+        if (!confirmed) return;
+
+        setIsResetting(true);
+        try {
+            await deleteAllHotels();
+            setHotels([]);
+            setBookings([]);
+            alert("System reset successful. All data removed.");
+        } catch (err) {
+            alert("Failed to reset system. Check server logs.");
+        } finally {
+            setIsResetting(false);
+        }
+    };
+
+    const handleRemoveNonAdminHotels = async () => {
+        const confirmed = window.confirm(
+            "This will remove the 6 system-generated hotels that were not created by an admin account. " +
+            "Continue?"
+        );
+        if (!confirmed) return;
+
+        setIsResetting(true);
+        try {
+            await deleteNonAdminHotels();
+            // Refresh the data to reflect the changes
+            await fetchData();
+            alert("Non-admin hotels have been successfully removed.");
+        } catch (err) {
+            alert("Failed to remove non-admin hotels. Check server logs.");
+        } finally {
+            setIsResetting(false);
         }
     };
 
@@ -199,7 +357,7 @@ const AdminDashboard = () => {
                             </div>
                             <div className="admin-stat-card glass-card">
                                 <div className="admin-stat-icon" style={{ background: 'linear-gradient(135deg, #F59E0B, #D97706)' }}><TrendingUp size={22} color="white" /></div>
-                                <div className="admin-stat-value">${totalRevenue.toLocaleString()}</div>
+                                <div className="admin-stat-value">₱{totalRevenue.toLocaleString()}</div>
                                 <div className="admin-stat-label">Total Revenue</div>
                             </div>
                             <div className="admin-stat-card glass-card">
@@ -224,7 +382,7 @@ const AdminDashboard = () => {
                                             <td><span className="booking-id-cell">{b.bookingReference}</span></td>
                                             <td>{b.guestName || '—'}</td>
                                             <td>{b.hotelName}</td>
-                                            <td><strong>${(b.totalPrice || 0).toLocaleString()}</strong></td>
+                                            <td><strong>₱{(b.totalPrice || 0).toLocaleString()}</strong></td>
                                             <td><span className={`table-badge ${STATUS_COLORS[b.status]}`}>{b.status}</span></td>
                                         </tr>
                                     ))}
@@ -237,22 +395,22 @@ const AdminDashboard = () => {
                 {/* Hotels Tab */}
                 {activeTab === 'hotels' && (
                     <div className="admin-hotels animate-fade-in">
-                        {/* Prominent Add Hotel Banner */}
-                        <div className="glass-card add-hotel-banner">
+                        <div className="admin-section-header">
                             <div>
-                                <h3 style={{ margin: 0 }}>🏨 Hotel Management</h3>
-                                <p style={{ margin: '0.3rem 0 0', color: 'var(--gray)', fontSize: '0.9rem' }}>
-                                    Add new hotels, edit existing details, or remove hotels that are no longer active.
-                                </p>
+                                <h2>All Managed Hotels</h2>
+                                <p>Manage existing hotels or add a new one with rooms and amenities.</p>
                             </div>
-                            <button
-                                className="btn btn-primary"
-                                id="add-hotel-btn"
-                                onClick={openAddModal}
-                                style={{ whiteSpace: 'nowrap', fontSize: '1rem', padding: '0.75rem 1.5rem', gap: '0.5rem' }}
-                            >
-                                <PlusCircle size={20} /> Add New Hotel
-                            </button>
+                            <div className="admin-header-actions">
+                                <button className="btn btn-danger btn-outline" onClick={handleRemoveNonAdminHotels} disabled={isResetting} title="Remove 6 system hotels">
+                                    <Trash2 size={16} /> {isResetting ? 'Removing...' : 'Remove Non-Admin Hotels'}
+                                </button>
+                                <button className="btn btn-danger btn-outline" onClick={handleResetSystem} disabled={isResetting}>
+                                    <ShieldAlert size={16} /> {isResetting ? 'Resetting...' : 'Reset System'}
+                                </button>
+                                <button className="btn btn-primary" onClick={openAddModal}>
+                                    <PlusCircle size={18} /> Add New Hotel
+                                </button>
+                            </div>
                         </div>
 
                         <div className="admin-table-card glass-card" style={{ marginTop: '1rem', overflowX: 'auto' }}>
@@ -321,6 +479,16 @@ const AdminDashboard = () => {
                 {/* Booking History Tab (All Users) */}
                 {activeTab === 'bookings' && (
                     <div className="admin-bookings-tab animate-fade-in">
+                        <div className="admin-section-header">
+                            <div>
+                                <h2>Complete Booking Records</h2>
+                                <p>View and filter all reservations made across the platform.</p>
+                            </div>
+                            <button className="btn btn-outline" onClick={() => window.open('https://localhost:7240/api/Bookings/export-csv', '_blank')}>
+                                <Save size={16} /> Export CSV
+                            </button>
+                        </div>
+
                         <div className="admin-table-card glass-card">
                             <table className="admin-table">
                                 <thead>
@@ -336,7 +504,7 @@ const AdminDashboard = () => {
                                             <td>{b.roomType} ({b.roomNumber})</td>
                                             <td>{b.checkInDate?.substring(0, 10)}</td>
                                             <td>{b.checkOutDate?.substring(0, 10)}</td>
-                                            <td><strong>${(b.totalPrice || 0).toLocaleString()}</strong></td>
+                                            <td><strong>₱{(b.totalPrice || 0).toLocaleString()}</strong></td>
                                             <td><span className={`table-badge ${STATUS_COLORS[b.status]}`}>{b.status}</span></td>
                                         </tr>
                                     ))}
@@ -353,72 +521,190 @@ const AdminDashboard = () => {
             {/* Add / Edit Hotel Modal */}
             {showModal && (
                 <div className="modal-overlay" onClick={closeModal}>
-                    <div className="modal-card glass-card" onClick={e => e.stopPropagation()}>
+                    <div className="modal-content glass-card animate-slide-up" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>{editingHotel ? 'Edit Hotel' : 'Add New Hotel'}</h2>
+                            <h2>
+                                {editingHotel ? <Edit3 size={20} /> : <PlusCircle size={20} />}
+                                {editingHotel ? 'Edit Hotel Details' : 'Add New Hotel Wizard'}
+                                {!editingHotel && <span className="wizard-badge">Step {wizardStep} of 2</span>}
+                            </h2>
                             <button className="modal-close-btn" onClick={closeModal}><X size={20} /></button>
                         </div>
-                        <form className="modal-form" onSubmit={handleSaveHotel}>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Hotel Name *</label>
-                                    <input name="name" value={hotelForm.name} onChange={handleFormChange} required placeholder="Grand Plaza Hotel" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Star Rating</label>
-                                    <select name="starRating" value={hotelForm.starRating} onChange={handleFormChange}>
-                                        {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Star{n > 1 ? 's' : ''}</option>)}
-                                    </select>
-                                </div>
+                        <form onSubmit={handleSaveHotel}>
+                            <div className="modal-body">
+                                {formError && <div className="alert alert-error">{formError}</div>}
+                                
+                                {wizardStep === 1 ? (
+                                    <div className="wizard-step animate-fade-in">
+                                        <div className="form-section-title">
+                                            <Hotel size={16} /> Basic Property Information
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="input-label">Hotel Name *</label>
+                                            <input className="input-field" name="name" value={hotelForm.name} onChange={handleFormChange} required placeholder="Grand Plaza Hotel" />
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="input-label">Description *</label>
+                                            <textarea className="input-field" name="description" value={hotelForm.description} onChange={handleFormChange} required rows={3} placeholder="Describe the hotel's unique features..." />
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label className="input-label">City *</label>
+                                                <input className="input-field" name="city" value={hotelForm.city} onChange={handleFormChange} required placeholder="Paris" />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="input-label">Country *</label>
+                                                <input className="input-field" name="country" value={hotelForm.country} onChange={handleFormChange} required placeholder="France" />
+                                            </div>
+                                        </div>
+                                        <div className="form-group">
+                                            <label className="input-label">Full Address *</label>
+                                            <input className="input-field" name="address" value={hotelForm.address} onChange={handleFormChange} required placeholder="123 Rue de Rivoli" />
+                                        </div>
+                                        <div className="form-row">
+                                            <div className="form-group">
+                                                <label className="input-label">Star Rating</label>
+                                                <select className="input-field" name="starRating" value={hotelForm.starRating} onChange={handleFormChange}>
+                                                    {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Stars</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="input-label">Phone Number</label>
+                                                <input className="input-field" name="phoneNumber" value={hotelForm.phoneNumber} onChange={handleFormChange} placeholder="+33 1 23 45 67 89" />
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="form-group">
+                                            <label className="input-label">Hotel Image (URL or Upload)</label>
+                                            <div className="image-input-container">
+                                                <input className="input-field" name="mainImageUrl" value={hotelForm.mainImageUrl} onChange={handleFormChange} placeholder="https://images.unsplash.com/..." disabled={!!imageFile} />
+                                                <div className="divider-text"><span>OR</span></div>
+                                                <div className="upload-box-wrapper">
+                                                    <label className={`upload-box ${imagePreview ? 'has-preview' : ''}`}>
+                                                        <input type="file" hidden onChange={handleImageChange} accept="image/jpeg,image/png,image/webp" />
+                                                        {imagePreview ? (
+                                                            <img src={imagePreview} alt="Preview" className="preview-img" />
+                                                        ) : (
+                                                            <div className="upload-placeholder">
+                                                                <Upload size={20} />
+                                                                <span>Upload File</span>
+                                                            </div>
+                                                        )}
+                                                    </label>
+                                                    {imageFile && (
+                                                        <button type="button" className="btn-remove-image" onClick={() => { setImageFile(null); setImagePreview(null); }}>
+                                                            <X size={12} /> Remove
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="amenities-selection">
+                                            <label className="input-label"><Zap size={14} /> Hotel Amenities</label>
+                                            <div className="amenities-chips">
+                                                {amenitiesList.map(amenity => (
+                                                    <button 
+                                                        key={amenity.id} 
+                                                        type="button"
+                                                        className={`amenity-chip ${hotelForm.amenityIds.includes(amenity.id) ? 'active' : ''}`}
+                                                        onClick={() => toggleHotelAmenity(amenity.id)}
+                                                    >
+                                                        {amenity.name}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="wizard-step animate-fade-in">
+                                        <div className="form-section-title">
+                                            <Grid size={16} /> Room Management
+                                        </div>
+                                        
+                                        <div className="add-room-subform glass-card">
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label className="input-label">Room Number/Name</label>
+                                                    <input className="input-field" name="roomNumber" value={roomForm.roomNumber} onChange={handleRoomChange} placeholder="101, Deluxe Suite, etc." />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="input-label">Room Type</label>
+                                                    <select className="input-field" name="roomType" value={roomForm.roomType} onChange={handleRoomChange}>
+                                                        <option>Standard</option>
+                                                        <option>Deluxe</option>
+                                                        <option>Suite</option>
+                                                        <option>Penthouse</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label className="input-label">Price per Night (₱)</label>
+                                                    <input className="input-field" type="number" name="pricePerNight" value={roomForm.pricePerNight} onChange={handleRoomChange} step="0.01" />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="input-label">Capacity (Guests)</label>
+                                                    <input className="input-field" type="number" name="capacity" value={roomForm.capacity} onChange={handleRoomChange} />
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="room-amenities-selection">
+                                                <label className="input-label">Room Amenities</label>
+                                                <div className="amenities-chips mini">
+                                                    {amenitiesList.map(amenity => (
+                                                        <button 
+                                                            key={amenity.id} 
+                                                            type="button"
+                                                            className={`amenity-chip ${roomForm.amenityIds.includes(amenity.id) ? 'active' : ''}`}
+                                                            onClick={() => toggleRoomAmenity(amenity.id)}
+                                                        >
+                                                            {amenity.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            
+                                            <button type="button" className="btn btn-secondary btn-sm mt-2" onClick={addRoomToHotel}>
+                                                <PlusCircle size={14} /> Add Room to Hotel
+                                            </button>
+                                        </div>
+
+                                        <div className="added-rooms-list mt-4">
+                                            <h4>Added Rooms ({hotelForm.rooms.length})</h4>
+                                            {hotelForm.rooms.length === 0 ? (
+                                                <p className="text-muted text-center py-4">No rooms added yet. Please add at least one.</p>
+                                            ) : (
+                                                <div className="rooms-preview-grid">
+                                                    {hotelForm.rooms.map((room, idx) => (
+                                                        <div key={idx} className="room-preview-card">
+                                                            <div className="room-preview-info">
+                                                                <strong>{room.roomNumber}</strong>
+                                                                <span>{room.roomType} · ₱{room.pricePerNight.toLocaleString()}</span>
+                                                            </div>
+                                                            <button type="button" className="btn-remove-room" onClick={() => removeRoom(idx)}>
+                                                                <X size={14} />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <div className="form-group">
-                                <label>Description *</label>
-                                <textarea name="description" value={hotelForm.description} onChange={handleFormChange} required rows={3} placeholder="A short description of the hotel..." />
-                            </div>
-                            <div className="form-group">
-                                <label>Address *</label>
-                                <input name="address" value={hotelForm.address} onChange={handleFormChange} required placeholder="123 Main St" />
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>City *</label>
-                                    <input name="city" value={hotelForm.city} onChange={handleFormChange} required placeholder="New York" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Country *</label>
-                                    <input name="country" value={hotelForm.country} onChange={handleFormChange} required placeholder="USA" />
-                                </div>
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Phone</label>
-                                    <input name="phoneNumber" value={hotelForm.phoneNumber} onChange={handleFormChange} placeholder="+1-212-555-0000" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Email</label>
-                                    <input name="email" value={hotelForm.email} onChange={handleFormChange} type="email" placeholder="info@hotel.com" />
-                                </div>
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label>Check-in Time</label>
-                                    <input name="checkInTime" value={hotelForm.checkInTime} onChange={handleFormChange} placeholder="15:00" />
-                                </div>
-                                <div className="form-group">
-                                    <label>Check-out Time</label>
-                                    <input name="checkOutTime" value={hotelForm.checkOutTime} onChange={handleFormChange} placeholder="11:00" />
-                                </div>
-                            </div>
-                            <div className="form-group">
-                                <label>Main Image URL</label>
-                                <input name="mainImageUrl" value={hotelForm.mainImageUrl} onChange={handleFormChange} placeholder="https://..." />
-                            </div>
-                            {formError && <div className="form-error-msg">{formError}</div>}
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-outline" onClick={closeModal}>Cancel</button>
-                                <button type="submit" className="btn btn-primary" disabled={saving} id="save-hotel-btn">
-                                    {saving ? '⌛ Saving...' : <><Save size={16} /> {editingHotel ? 'Save Changes' : 'Create Hotel'}</>}
-                                </button>
+                                <div className="footer-actions">
+                                    {wizardStep === 2 && !editingHotel && (
+                                        <button type="button" className="btn btn-outline" onClick={() => setWizardStep(1)}>
+                                            ← Back
+                                        </button>
+                                    )}
+                                    <button type="submit" className="btn btn-primary" disabled={saving} id="save-hotel-btn">
+                                        <Save size={18} /> {saving ? 'Saving...' : (editingHotel ? 'Save Changes' : (wizardStep === 1 ? 'Next: Add Rooms →' : 'Complete Registration'))}
+                                    </button>
+                                </div>
                             </div>
                         </form>
                     </div>

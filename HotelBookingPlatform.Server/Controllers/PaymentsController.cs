@@ -1,5 +1,6 @@
-﻿using HotelBookingPlatform.Core.DTOs;
+using HotelBookingPlatform.Core.DTOs;
 using HotelBookingPlatform.Core.Interfaces;
+using HotelBookingPlatform.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -13,11 +14,13 @@ public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
     private readonly ILogger<PaymentsController> _logger;
+    private readonly ApplicationDbContext _context;
 
-    public PaymentsController(IPaymentService paymentService, ILogger<PaymentsController> logger)
+    public PaymentsController(IPaymentService paymentService, ILogger<PaymentsController> logger, ApplicationDbContext context)
     {
         _paymentService = paymentService;
         _logger = logger;
+        _context = context;
     }
 
     private int GetCurrentUserId()
@@ -33,6 +36,16 @@ public class PaymentsController : ControllerBase
     {
         try
         {
+            // Verify ownership
+            var booking = await _context.Bookings.FindAsync(bookingId);
+            if (booking == null) return NotFound();
+
+            var userId = GetCurrentUserId();
+            if (booking.UserId != userId && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
             var result = await _paymentService.CreatePaymentIntentAsync(bookingId);
             return Ok(result);
         }
@@ -52,6 +65,16 @@ public class PaymentsController : ControllerBase
     {
         try
         {
+            // Verify ownership
+            var booking = await _context.Bookings.FindAsync(confirmDto.BookingId);
+            if (booking == null) return NotFound();
+
+            var userId = GetCurrentUserId();
+            if (booking.UserId != userId && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
             var result = await _paymentService.ConfirmPaymentAsync(confirmDto.BookingId, confirmDto.PaymentIntentId);
             return Ok(result);
         }
@@ -71,6 +94,16 @@ public class PaymentsController : ControllerBase
     {
         try
         {
+            // Verify ownership
+            var booking = await _context.Bookings.FindAsync(bookingId);
+            if (booking == null) return NotFound();
+
+            var userId = GetCurrentUserId();
+            if (booking.UserId != userId && !User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
             var result = await _paymentService.RefundPaymentAsync(bookingId);
             return Ok(result);
         }

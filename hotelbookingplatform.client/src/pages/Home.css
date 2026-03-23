@@ -150,27 +150,35 @@
     flex-direction: column;
 }
 
-.card-image-placeholder {
-    height: 200px;
-    background: linear-gradient(135deg, var(--primary-light), #E2E8F0);
+.card-image-box {
+    position: relative;
+    overflow: hidden;
+    transition: var(--transition);
 }
 
-.card-content {
-    padding: 1.5rem;
+.hotel-card:hover .card-image-box {
+    transform: scale(1.05);
 }
 
-.card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 0.5rem;
-}
-
-.card-header h3 {
-    font-size: 1.25rem;
+.card-badge {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background: var(--secondary);
+    color: white;
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-full);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    box-shadow: var(--shadow-sm);
 }
 
 .rating {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
     background: var(--dark);
     color: var(--warning);
     padding: 0.25rem 0.5rem;
@@ -180,8 +188,36 @@
 }
 
 .location {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
     color: var(--gray);
     font-size: 0.9rem;
+}
+
+.loading-state {
+    text-align: center;
+    padding: 4rem;
+}
+
+.loader {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--primary-light);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.empty-state {
+    text-align: center;
+    padding: 4rem;
+    color: var(--gray);
 }
 
 .price-tag .price {

@@ -4,16 +4,6 @@ import { Search, Filter, MapPin, Star, Wifi, Car, Utensils, Waves, Dumbbell, Sli
 import { getHotels } from '../services/hotelService';
 import './Hotels.css';
 
-// Mock data for when API is unavailable
-const MOCK_HOTELS = [
-    { id: 1, name: 'The Grand Meridian', city: 'Paris', country: 'France', pricePerNight: 320, rating: 4.9, reviewCount: 842, category: 'Luxury', amenities: ['wifi', 'pool', 'restaurant', 'gym'], description: 'An iconic luxury hotel in the heart of Paris with breathtaking Eiffel Tower views.' },
-    { id: 2, name: 'Azure Cove Resort', city: 'Santorini', country: 'Greece', pricePerNight: 450, rating: 4.8, reviewCount: 615, category: 'Resort', amenities: ['wifi', 'pool', 'restaurant'], description: 'Perched on the caldera cliffs, offering infinity pools and stunning sunset views.' },
-    { id: 3, name: 'Urban Nest Boutique', city: 'New York', country: 'USA', pricePerNight: 195, rating: 4.7, reviewCount: 1203, category: 'Boutique', amenities: ['wifi', 'gym'], description: 'A hip boutique hotel nestled in Downtown Manhattan, steps from iconic landmarks.' },
-    { id: 4, name: 'Sakura Garden Inn', city: 'Kyoto', country: 'Japan', pricePerNight: 280, rating: 4.8, reviewCount: 490, category: 'Boutique', amenities: ['wifi', 'restaurant'], description: 'A serene Ryokan-inspired retreat surrounded by cherry blossoms and zen gardens.' },
-    { id: 5, name: 'Bali Treetop Villas', city: 'Ubud', country: 'Indonesia', pricePerNight: 175, rating: 4.9, reviewCount: 728, category: 'Villa', amenities: ['wifi', 'pool', 'restaurant'], description: 'Secluded jungle villas with private plunge pools and guided cultural experiences.' },
-    { id: 6, name: 'The Arctic Lodge', city: 'Tromsø', country: 'Norway', pricePerNight: 390, rating: 4.7, reviewCount: 221, category: 'Luxury', amenities: ['wifi', 'restaurant'], description: 'Glass-ceiling suites for northern lights viewing with guided aurora expeditions.' },
-];
-
 const AMENITY_ICONS = {
     wifi: <Wifi size={14} />,
     pool: <Waves size={14} />,
@@ -26,7 +16,7 @@ const CATEGORIES = ['All', 'Luxury', 'Resort', 'Boutique', 'Villa', 'Budget'];
 const AMENITY_FILTERS = ['wifi', 'pool', 'restaurant', 'parking', 'gym'];
 
 const Hotels = () => {
-    const [hotels, setHotels] = useState(MOCK_HOTELS);
+    const [hotels, setHotels] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -54,10 +44,10 @@ const Hotels = () => {
                 amenities: h.amenities || ['wifi'], // Fallback
             }));
 
-            // If DB is totally empty, show mock hotels for the layout
-            setHotels(realHotels.length > 0 ? realHotels : MOCK_HOTELS);
+            // If DB is totally empty, show an empty list
+            setHotels(realHotels);
         } catch {
-            setHotels(MOCK_HOTELS);
+            setHotels([]);
         } finally {
             setLoading(false);
         }

@@ -21,8 +21,22 @@ export const getRoomById = (hotelId, roomId) => {
 export const createHotel = (data) => apiClient.post('/Hotels', data);
 export const updateHotel = (id, data) => apiClient.put(`/Hotels/${id}`, data);
 export const deleteHotel = (id) => apiClient.delete(`/Hotels/${id}`);
+export const deleteAllHotels = () => apiClient.delete('/Hotels/all');
+export const deleteNonAdminHotels = () => apiClient.delete('/Hotels/bulk-remove-non-admin');
 
 // Admin - create/update/delete rooms
 export const createRoom = (hotelId, data) => apiClient.post(`/Hotels/${hotelId}/rooms`, data);
 export const updateRoom = (hotelId, roomId, data) => apiClient.put(`/Hotels/${hotelId}/rooms/${roomId}`, data);
 export const deleteRoom = (hotelId, roomId) => apiClient.delete(`/Hotels/${hotelId}/rooms/${roomId}`);
+
+// Amenities
+export const getAmenities = () => apiClient.get('/Amenities');
+
+// Image Upload
+export const uploadHotelImage = (formData) => {
+    return apiClient.post('/Hotels/upload-image', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data'
+        }
+    });
+};

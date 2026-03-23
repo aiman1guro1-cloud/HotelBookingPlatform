@@ -1,4 +1,5 @@
-﻿using HotelBookingPlatform.Core.Entities.Base;
+using HotelBookingPlatform.Core.Entities.Base;
+using HotelBookingPlatform.Core.Enums;
 
 namespace HotelBookingPlatform.Core.Entities;
 
@@ -20,6 +21,9 @@ public class Hotel : BaseEntity
     public string? Website { get; set; }
     public string? CheckInTime { get; set; }  // e.g., "14:00"
     public string? CheckOutTime { get; set; }  // e.g., "11:00"
+    public HotelStatus Status { get; set; } = HotelStatus.Pending;
+    public int? OwnerId { get; set; }
+    public User? Owner { get; set; }
 
     // Navigation properties - THESE WERE MISSING
     public ICollection<Room> Rooms { get; set; } = new List<Room>();

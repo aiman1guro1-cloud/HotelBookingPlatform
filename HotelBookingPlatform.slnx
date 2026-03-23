@@ -7,4 +7,5 @@
   <Project Path="HotelBookingPlatform.Infrastructure/HotelBookingPlatform.Infrastructure.csproj" Id="e098dd69-98a5-4ed5-a263-c6006964cecc" />
   <Project Path="HotelBookingPlatform.Server/HotelBookingPlatform.Server.csproj" />
   <Project Path="HotelBookingPlatform.Services/HotelBookingPlatform.Services.csproj" Id="d89b1fdf-d103-4a4e-a48d-231bef5021b6" />
+  <Project Path="HotelBookingPlatform.Tests/HotelBookingPlatform.Tests.csproj" />
 </Solution>

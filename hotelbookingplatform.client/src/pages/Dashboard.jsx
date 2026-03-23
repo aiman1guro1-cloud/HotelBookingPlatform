@@ -5,27 +5,6 @@ import { getMyBookings, cancelBooking } from '../services/bookingService';
 import useAuthStore from '../stores/useAuthStore';
 import './Dashboard.css';
 
-const MOCK_BOOKINGS = [
-    {
-        id: 'HBP-A1B2C3', hotelName: 'The Grand Meridian', roomName: 'Deluxe King Room',
-        city: 'Paris', country: 'France', checkIn: '2026-04-10', checkOut: '2026-04-14',
-        nights: 4, totalAmount: 1408, status: 'Confirmed', createdAt: '2026-03-01',
-        hotelId: 1,
-    },
-    {
-        id: 'HBP-X9Y8Z7', hotelName: 'Azure Cove Resort', roomName: 'Junior Suite',
-        city: 'Santorini', country: 'Greece', checkIn: '2026-06-20', checkOut: '2026-06-27',
-        nights: 7, totalAmount: 3528, status: 'Pending', createdAt: '2026-03-03',
-        hotelId: 2,
-    },
-    {
-        id: 'HBP-M4N5O6', hotelName: 'Urban Nest Boutique', roomName: 'Superior Twin Room',
-        city: 'New York', country: 'USA', checkIn: '2026-02-01', checkOut: '2026-02-04',
-        nights: 3, totalAmount: 672, status: 'Completed', createdAt: '2026-01-20',
-        hotelId: 3,
-    },
-];
-
 const STATUS_CONFIG = {
     Confirmed: { color: 'status-confirmed', icon: <CheckCircle size={14} />, label: 'Confirmed' },
     Pending: { color: 'status-pending', icon: <Clock size={14} />, label: 'Pending' },
@@ -46,9 +25,9 @@ const Dashboard = () => {
             setLoading(true);
             try {
                 const response = await getMyBookings();
-                setBookings(response.data || MOCK_BOOKINGS);
+                setBookings(response.data || []);
             } catch {
-                setBookings(MOCK_BOOKINGS);
+                setBookings([]);
             } finally {
                 setLoading(false);
             }

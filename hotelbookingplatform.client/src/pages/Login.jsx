@@ -22,7 +22,11 @@ const Login = () => {
             await login(email, password);
             navigate('/');
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');
+            if (err.code === 'ERR_NETWORK') {
+                setError('Unable to connect to the server. Please check if the backend is running.');
+            } else {
+                setError(err.response?.data?.message || 'Failed to login. Please check your credentials.');
+            }
         } finally {
             setIsLoading(false);
         }

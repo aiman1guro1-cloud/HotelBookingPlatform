@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using HotelBookingPlatform.Core.Entities;
 
 namespace HotelBookingPlatform.Infrastructure.Data;
@@ -21,6 +21,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<HotelImage> HotelImages { get; set; }
     public DbSet<RoomImage> RoomImages { get; set; }
     public DbSet<RoomAmenity> RoomAmenities { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<UserPaymentMethod> UserPaymentMethods { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +43,13 @@ public class ApplicationDbContext : DbContext
             .WithMany(u => u.Reviews)
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        // Hotel - Owner (one-to-many)
+        modelBuilder.Entity<Hotel>()
+            .HasOne(h => h.Owner)
+            .WithMany()
+            .HasForeignKey(h => h.OwnerId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         // Hotel - Room (one-to-many)
         modelBuilder.Entity<Room>()
@@ -84,11 +93,24 @@ public class ApplicationDbContext : DbContext
             .HasForeignKey(ra => ra.RoomId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        modelBuilder.Entity<RoomAmenity>()
+            .HasOne(ra => ra.Amenity)
+            .WithMany()
+            .HasForeignKey(ra => ra.AmenityId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         // Booking - Payment (one-to-one)
         modelBuilder.Entity<Payment>()
             .HasOne(p => p.Booking)
             .WithOne(b => b.Payment)
             .HasForeignKey<Payment>(p => p.BookingId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // User - PaymentMethod (one-to-many)
+        modelBuilder.Entity<UserPaymentMethod>()
+            .HasOne(upm => upm.User)
+            .WithMany(u => u.PaymentMethods)
+            .HasForeignKey(upm => upm.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
         // Add unique constraints
@@ -107,5 +129,23 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Booking>()
             .HasIndex(b => b.BookingReference)
             .IsUnique();
+
+        // Configure decimal precision for all money/price fields
+        modelBuilder.Entity<Booking>(entity =>
+        {
+            entity.Property(b => b.TotalPrice).HasPrecision(18, 2);
+            entity.Property(b => b.DiscountAmount).HasPrecision(18, 2);
+            entity.Property(b => b.TaxAmount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.Property(p => p.Amount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<Room>(entity =>
+        {
+            entity.Property(r => r.PricePerNight).HasPrecision(18, 2);
+        });
     }
 }

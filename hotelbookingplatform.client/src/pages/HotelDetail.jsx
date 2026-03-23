@@ -4,22 +4,6 @@ import { MapPin, Star, Wifi, Car, Utensils, Dumbbell, ArrowLeft, Calendar, Users
 import { getHotelById, getRoomsByHotel } from '../services/hotelService';
 import './HotelDetail.css';
 
-const MOCK_HOTEL = {
-    id: 1, name: 'The Grand Meridian', city: 'Paris', country: 'France',
-    rating: 4.9, reviewCount: 842,
-    description: 'An iconic luxury hotel in the heart of Paris with breathtaking Eiffel Tower views. Our hotel blends timeless elegance with contemporary comfort, offering guests a truly unforgettable Parisian experience. From our rooftop restaurant to our world-class spa, every detail has been curated for discerning travellers.',
-    amenities: ['wifi', 'pool', 'restaurant', 'gym', 'parking', 'spa', 'concierge', 'room service'],
-    address: '10 Rue de la Paix, 75001 Paris, France',
-    phone: '+33 1 42 78 45 00',
-};
-
-const MOCK_ROOMS = [
-    { id: 1, name: 'Deluxe King Room', category: 'Deluxe', maxGuests: 2, pricePerNight: 320, beds: '1 King Bed', size: '38 sqm', amenities: ['wifi', 'tv', 'minibar', 'safe'], available: true, description: 'A spacious room with elegant Parisian decor, featuring floor-to-ceiling windows with city views.' },
-    { id: 2, name: 'Superior Twin Room', category: 'Superior', maxGuests: 2, pricePerNight: 280, beds: '2 Twin Beds', size: '32 sqm', amenities: ['wifi', 'tv', 'minibar'], available: true, description: 'Perfect for two travelers, with separate workspaces and contemporary styling.' },
-    { id: 3, name: 'Junior Suite', category: 'Suite', maxGuests: 3, pricePerNight: 520, beds: '1 King Bed + Sofa', size: '65 sqm', amenities: ['wifi', 'tv', 'minibar', 'safe', 'jacuzzi'], available: true, description: 'A generous suite with a separate living area and a luxury ensuite with a jacuzzi tub.' },
-    { id: 4, name: 'Grand Eiffel Suite', category: 'Suite', maxGuests: 4, pricePerNight: 950, beds: '1 King Bed', size: '120 sqm', amenities: ['wifi', 'tv', 'minibar', 'safe', 'jacuzzi', 'butler'], available: false, description: 'Our flagship suite with a panoramic Eiffel Tower view, private terrace, and dedicated butler service.' },
-];
-
 const AMENITY_MAP = {
     wifi: { icon: <Wifi size={16} />, label: 'Free WiFi' },
     pool: { icon: '🏊', label: 'Swimming Pool' },
@@ -50,11 +34,11 @@ const HotelDetail = () => {
                     getHotelById(id),
                     getRoomsByHotel(id),
                 ]);
-                setHotel(hotelRes.data || MOCK_HOTEL);
-                setRooms(roomsRes.data || MOCK_ROOMS);
+                setHotel(hotelRes.data);
+                setRooms(roomsRes.data || []);
             } catch {
-                setHotel(MOCK_HOTEL);
-                setRooms(MOCK_ROOMS);
+                setHotel(null);
+                setRooms([]);
             } finally {
                 setLoading(false);
             }

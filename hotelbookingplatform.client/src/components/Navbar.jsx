@@ -90,8 +90,8 @@ const Navbar = () => {
                                     <Link to="/dashboard" className="dropdown-item" onClick={() => setUserMenuOpen(false)}>
                                         <LayoutDashboard size={15} /> My Bookings
                                     </Link>
-                                    <Link to="/profile" className="dropdown-item" onClick={() => setUserMenuOpen(false)}>
-                                        <User size={15} /> Profile
+                                    <Link to="/settings" className="dropdown-item" onClick={() => setUserMenuOpen(false)}>
+                                        <User size={15} /> Account Settings
                                     </Link>
                                     {user?.role?.toLowerCase() === 'admin' && (
                                         <Link to="/admin" className="dropdown-item" style={{ color: '#7C3AED', fontWeight: 600, background: 'rgba(124,58,237,0.06)' }} onClick={() => setUserMenuOpen(false)}>

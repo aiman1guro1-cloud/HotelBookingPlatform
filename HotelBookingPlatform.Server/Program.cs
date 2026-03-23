@@ -3,10 +3,11 @@ using HotelBookingPlatform.Infrastructure.Data;
 using HotelBookingPlatform.Server.Mappings;
 using HotelBookingPlatform.Services.Auth;
 using HotelBookingPlatform.Services.Payment;
+using HotelBookingPlatform.Services.Common;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.OpenApi;
+using Microsoft.OpenApi.Models;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -16,6 +17,10 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPaymentService, StripePaymentService>(); // ADD THIS
+builder.Services.AddScoped<IAuditLogService, AuditLogService>();
+builder.Services.AddScoped<IImageService>(provider => 
+    new ImageService(builder.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")));
+builder.Services.AddHttpContextAccessor();
 
 // Add services to the container
 builder.Services.AddControllers();
@@ -35,17 +40,19 @@ builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-builder.Services.AddCors(options => {
-  options.AddPolicy("AllowReactApp", policy => {
-    policy.WithOrigins(
-              "http://localhost:52126", "https://localhost:52126",
-              "http://localhost:52127", "https://localhost:52127",
-              "http://localhost:52128", "https://localhost:52128")
-          .AllowAnyMethod()
-          .AllowAnyHeader()
-          .AllowCredentials();
-  })
-})
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowReactApp", policy =>
+    {
+        policy.WithOrigins(
+                  "http://localhost:52126", "https://localhost:52126",
+                  "http://localhost:52127", "https://localhost:52127",
+                  "http://localhost:52128", "https://localhost:52128")
+              .AllowAnyMethod()
+              .AllowAnyHeader()
+              .AllowCredentials();
+    });
+});
 
 // Configure JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? throw new InvalidOperationException("JWT Key not configured");
@@ -113,10 +120,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
-
 // Add CORS policy to allow React frontend
 app.UseCors("AllowReactApp");
+
+app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
