@@ -58,13 +58,29 @@ const AdminDashboard = () => {
 
     const fetchData = async () => {
         setLoading(true);
+        setFormError('');
         try {
-            const [hotelsRes, bookingsRes] = await Promise.all([getHotels({ status: 'Approved' }), getAllBookings()]);
+            // Fetch hotels. Admin sees all hotels.
+            const hotelsRes = await getHotels();
             setHotels(hotelsRes.data || []);
-            setBookings(bookingsRes.data || []);
-        } catch {
+            
+            try {
+                // Fetch all bookings. This requires Admin role.
+                const bookingsRes = await getAllBookings();
+                setBookings(bookingsRes.data || []);
+            } catch (err) {
+                console.error("Failed to load bookings. You might not have Admin permissions.", err);
+                setBookings([]);
+                if (err.response?.status === 401) {
+                    setFormError("Booking History restricted: Admin access required.");
+                }
+            }
+        } catch (err) {
+            console.error("Data fetch error", err);
             setHotels([]);
-            setBookings([]);
+            if (err.response?.status === 401) {
+                setFormError("Access Denied: Please re-login with your Admin account.");
+            }
         } finally {
             setLoading(false);
         }
@@ -73,7 +89,16 @@ const AdminDashboard = () => {
     const loadAmenities = async () => {
         try {
             const res = await getAmenities();
-            setAmenitiesList(res.data || []);
+            // Deduplicate by amenity name to handle any DB-level duplicates
+            const unique = [];
+            const seen = new Set();
+            for (const a of (res.data || [])) {
+                if (!seen.has(a.name)) {
+                    seen.add(a.name);
+                    unique.push(a);
+                }
+            }
+            setAmenitiesList(unique);
         } catch (err) {
             console.error("Failed to load amenities", err);
         }
@@ -89,6 +114,11 @@ const AdminDashboard = () => {
 
     const openEditModal = (hotel) => {
         setEditingHotel(hotel);
+        // Ensure amenityIds is a flat array of unique numeric IDs
+        const uniqueAmenityIds = hotel.amenities 
+            ? [...new Set(hotel.amenities.map(a => Number(typeof a === 'object' ? a.id : a)))]
+            : [];
+
         setHotelForm({
             name: hotel.name || '',
             description: hotel.description || '',
@@ -103,7 +133,12 @@ const AdminDashboard = () => {
             checkInTime: hotel.checkInTime || '15:00',
             checkOutTime: hotel.checkOutTime || '11:00',
             mainImageUrl: hotel.mainImageUrl || '',
+            amenityIds: uniqueAmenityIds,
+            rooms: hotel.rooms || []
         });
+        setWizardStep(1); // Reset to basic info step
+        setImageFile(null); // Clear any pending upload
+        setImagePreview(hotel.mainImageUrl || null);
         setFormError('');
         setShowModal(true);
     };
@@ -148,12 +183,17 @@ const AdminDashboard = () => {
     };
 
     const toggleHotelAmenity = (id) => {
-        setHotelForm(prev => ({
-            ...prev,
-            amenityIds: prev.amenityIds.includes(id) 
-                ? prev.amenityIds.filter(a => a !== id)
-                : [...prev.amenityIds, id]
-        }));
+        setHotelForm(prev => {
+            const currentIds = Array.isArray(prev.amenityIds) ? prev.amenityIds : [];
+            // Ensure ID is a number for strict comparison
+            const numericId = Number(id);
+            return {
+                ...prev,
+                amenityIds: currentIds.includes(numericId) 
+                    ? currentIds.filter(a => Number(a) !== numericId)
+                    : [...currentIds, numericId]
+            };
+        });
     };
 
     const toggleRoomAmenity = (id) => {
@@ -187,6 +227,7 @@ const AdminDashboard = () => {
     const handleSaveHotel = async (e) => {
         e.preventDefault();
         
+        // If we are adding a new hotel and currently on step 1, move to step 2
         if (!editingHotel && wizardStep === 1) {
             setWizardStep(2);
             return;
@@ -201,7 +242,16 @@ const AdminDashboard = () => {
             if (imageFile) {
                 const formData = new FormData();
                 formData.append('file', imageFile);
-                const uploadRes = await uploadHotelImage(formData);
+                
+                // Use a fresh token for this request
+                const token = localStorage.getItem('token');
+                const uploadRes = await uploadHotelImage(formData, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                // IMPORTANT: Use relative path so the server can resolve it correctly via static files
                 finalImageUrl = `https://localhost:7240${uploadRes.data.imageUrl}`;
             }
 
@@ -216,18 +266,26 @@ const AdminDashboard = () => {
             };
             
             if (editingHotel) {
+                // When editing, we only update the hotel basic info
                 const res = await updateHotel(editingHotel.id, payload);
-                setHotels(prev => prev.map(h => h.id === editingHotel.id ? res.data : h));
+                setHotels(prev => prev.map(h => h.id === editingHotel.id ? { ...h, ...res.data } : h));
+                alert("Hotel information updated successfully!");
             } else {
                 if (hotelForm.rooms.length === 0) {
                     throw new Error("Please add at least one room to the hotel.");
                 }
                 const res = await createHotel(payload);
                 setHotels(prev => [...prev, res.data]);
+                alert("New hotel registered successfully!");
             }
             closeModal();
         } catch (err) {
-            setFormError(err?.message || err?.response?.data?.message || 'Failed to save hotel.');
+            const status = err?.response?.status;
+            if (status === 401) {
+                setFormError('Your session has expired. Please log out and log back in to save changes.');
+            } else {
+                setFormError(err?.message || err?.response?.data?.message || 'Failed to save hotel.');
+            }
         } finally {
             setSaving(false);
         }
@@ -247,6 +305,7 @@ const AdminDashboard = () => {
             setBookings([]);
             alert("System reset successful. All data removed.");
         } catch (err) {
+            console.error(err);
             alert("Failed to reset system. Check server logs.");
         } finally {
             setIsResetting(false);
@@ -267,6 +326,7 @@ const AdminDashboard = () => {
             await fetchData();
             alert("Non-admin hotels have been successfully removed.");
         } catch (err) {
+            console.error(err);
             alert("Failed to remove non-admin hotels. Check server logs.");
         } finally {
             setIsResetting(false);
@@ -534,7 +594,90 @@ const AdminDashboard = () => {
                             <div className="modal-body">
                                 {formError && <div className="alert alert-error">{formError}</div>}
                                 
-                                {wizardStep === 1 ? (
+                                    {editingHotel ? (
+                                        <div className="wizard-step animate-fade-in">
+                                            <div className="form-section-title">
+                                                <Hotel size={16} /> Edit Property Information
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="input-label">Hotel Name *</label>
+                                                <input className="input-field" name="name" value={hotelForm.name} onChange={handleFormChange} required placeholder="Grand Plaza Hotel" />
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="input-label">Description *</label>
+                                                <textarea className="input-field" name="description" value={hotelForm.description} onChange={handleFormChange} required rows={3} placeholder="Describe the hotel's unique features..." />
+                                            </div>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label className="input-label">City *</label>
+                                                    <input className="input-field" name="city" value={hotelForm.city} onChange={handleFormChange} required placeholder="Paris" />
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="input-label">Country *</label>
+                                                    <input className="input-field" name="country" value={hotelForm.country} onChange={handleFormChange} required placeholder="France" />
+                                                </div>
+                                            </div>
+                                            <div className="form-group">
+                                                <label className="input-label">Full Address *</label>
+                                                <input className="input-field" name="address" value={hotelForm.address} onChange={handleFormChange} required placeholder="123 Rue de Rivoli" />
+                                            </div>
+                                            <div className="form-row">
+                                                <div className="form-group">
+                                                    <label className="input-label">Star Rating</label>
+                                                    <select className="input-field" name="starRating" value={hotelForm.starRating} onChange={handleFormChange}>
+                                                        {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Stars</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="form-group">
+                                                    <label className="input-label">Phone Number</label>
+                                                    <input className="input-field" name="phoneNumber" value={hotelForm.phoneNumber} onChange={handleFormChange} placeholder="+33 1 23 45 67 89" />
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="form-group">
+                                                <label className="input-label">Hotel Image (URL or Upload)</label>
+                                                <div className="image-input-container">
+                                                    <input className="input-field" name="mainImageUrl" value={hotelForm.mainImageUrl} onChange={handleFormChange} placeholder="https://images.unsplash.com/..." disabled={!!imageFile} />
+                                                    <div className="divider-text"><span>OR</span></div>
+                                                    <div className="upload-box-wrapper">
+                                                        <label className={`upload-box ${imagePreview ? 'has-preview' : ''}`}>
+                                                            <input type="file" hidden onChange={handleImageChange} accept="image/jpeg,image/png,image/webp" />
+                                                            {imagePreview ? (
+                                                                <img src={imagePreview} alt="Preview" className="preview-img" />
+                                                            ) : (
+                                                                <div className="upload-placeholder">
+                                                                    <Upload size={20} />
+                                                                    <span>Upload File</span>
+                                                                </div>
+                                                            )}
+                                                        </label>
+                                                        {imageFile && (
+                                                            <button type="button" className="btn-remove-image" onClick={() => { setImageFile(null); setImagePreview(null); }}>
+                                                                <X size={12} /> Remove
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="amenities-selection">
+                                                <label className="input-label"><Zap size={14} /> Hotel Amenities</label>
+                                                <div className="amenities-chips">
+                                                    {/* Filter duplicate amenities from the display list if any */}
+                                                    {Array.from(new Map(amenitiesList.map(a => [Number(a.id), a])).values()).map(amenity => (
+                                                        <button 
+                                                            key={amenity.id} 
+                                                            type="button"
+                                                            className={`amenity-chip ${hotelForm.amenityIds.includes(Number(amenity.id)) ? 'active' : ''}`}
+                                                            onClick={() => toggleHotelAmenity(amenity.id)}
+                                                        >
+                                                            {amenity.name}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : wizardStep === 1 ? (
                                     <div className="wizard-step animate-fade-in">
                                         <div className="form-section-title">
                                             <Hotel size={16} /> Basic Property Information

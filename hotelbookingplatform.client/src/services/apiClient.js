@@ -31,11 +31,16 @@ apiClient.interceptors.response.use(
   },
   (error) => {
     if (error.response?.status === 401) {
-      // Handle unauthorized (e.g., redirect to login or clear store)
-      console.error("Unauthorized! Token might be expired.");
-      localStorage.removeItem("token");
-      // Optionally emit a custom event to force the app to log out globally
-      window.dispatchEvent(new Event("auth-unauthorized"));
+      const isAuthRequest = error.config.url.includes('/Auth/');
+      
+      if (isAuthRequest) {
+        console.error("Authentication failed.");
+      } else {
+        console.warn("Unauthorized access to " + error.config.url + ". Token might be expired or insufficient permissions.");
+        // Don't automatically clear token or redirect here.
+        // Token validity is managed by useAuthStore.verifyAuth() on app start.
+        // Individual components should handle 401 errors gracefully.
+      }
     }
     return Promise.reject(error);
   },

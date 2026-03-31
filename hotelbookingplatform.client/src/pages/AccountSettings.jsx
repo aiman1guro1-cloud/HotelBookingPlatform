@@ -35,6 +35,7 @@ const AccountSettings = () => {
             setProfile(profileRes.data);
             setPaymentMethods(paymentRes.data);
         } catch (err) {
+            console.error(err);
             setError('Failed to load account information.');
         } finally {
             setLoading(false);
@@ -54,6 +55,7 @@ const AccountSettings = () => {
             await updateProfile(profile);
             setSuccess('Profile updated successfully!');
         } catch (err) {
+            console.error(err);
             setError('Failed to update profile.');
         } finally {
             setSaving(false);
@@ -71,6 +73,7 @@ const AccountSettings = () => {
             loadData();
             setSuccess('Payment method added!');
         } catch (err) {
+            console.error(err);
             setError('Failed to add payment method.');
         }
     };
@@ -82,6 +85,7 @@ const AccountSettings = () => {
             loadData();
             setSuccess('Payment method deleted.');
         } catch (err) {
+            console.error(err);
             setError('Failed to delete payment method.');
         }
     };

@@ -1,6 +1,7 @@
-﻿using HotelBookingPlatform.Core.DTOs;
+using HotelBookingPlatform.Core.DTOs;
 using HotelBookingPlatform.Core.Interfaces;
 using HotelBookingPlatform.Infrastructure.Data;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -129,5 +130,16 @@ public class AuthController : ControllerBase
         await _context.SaveChangesAsync();
 
         return Ok(new { message = "Password reset successfully! You can now log in with your new password." });
+    }
+
+    [HttpGet("me")]
+    [Authorize]
+    public IActionResult GetMe()
+    {        var claims = User.Claims.Select(c => new { c.Type, c.Value }).ToList();
+        return Ok(new
+        {            IsAuthenticated = User.Identity?.IsAuthenticated,
+            UserName = User.Identity?.Name,
+            Claims = claims
+        });
     }
 }

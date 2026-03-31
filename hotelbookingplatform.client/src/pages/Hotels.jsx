@@ -258,9 +258,17 @@ const Hotels = () => {
                                         id={`hotel-card-${hotel.id}`}
                                     >
                                         <div className="hotel-card-image">
-                                            <div className="hotel-img-placeholder" style={{ background: `linear-gradient(135deg, hsl(${(hotel.id * 47) % 360}, 60%, 40%), hsl(${(hotel.id * 47 + 60) % 360}, 70%, 55%))` }}>
-                                                <span className="hotel-category-badge">{hotel.category}</span>
-                                            </div>
+                                            <img 
+                                                src={hotel.mainImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800'} 
+                                                alt={hotel.name}
+                                                className="hotel-card-img"
+                                                loading="lazy"
+                                                onError={(e) => {
+                                                    e.target.onerror = null; 
+                                                    e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800';
+                                                }}
+                                            />
+                                            <span className="hotel-category-badge">{hotel.category}</span>
                                         </div>
                                         <div className="hotel-card-body">
                                             <div className="hotel-card-header">

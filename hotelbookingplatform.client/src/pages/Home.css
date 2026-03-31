@@ -153,11 +153,19 @@
 .card-image-box {
     position: relative;
     overflow: hidden;
-    transition: var(--transition);
+    height: 200px;
+    background-color: var(--gray-light);
 }
 
-.hotel-card:hover .card-image-box {
-    transform: scale(1.05);
+.card-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease;
+}
+
+.hotel-card:hover .card-img {
+    transform: scale(1.1);
 }
 
 .card-badge {

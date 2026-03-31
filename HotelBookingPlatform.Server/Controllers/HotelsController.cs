@@ -163,20 +163,28 @@ public class HotelsController : ControllerBase
     [HttpGet("{id}")]
     public async Task<ActionResult<HotelDetailDto>> GetHotel(int id)
     {
-        var hotel = await _context.Hotels
-            .Include(h => h.Rooms)
-                .ThenInclude(r => r.RoomAmenities)
-            .Include(h => h.Amenities)
-            .Include(h => h.Reviews)
-                .ThenInclude(r => r.User)
-            .FirstOrDefaultAsync(h => h.Id == id);
-
-        if (hotel == null)
+        try 
         {
-            return NotFound();
-        }
+            var hotel = await _context.Hotels
+                .Include(h => h.Rooms)
+                    .ThenInclude(r => r.RoomAmenities)
+                        .ThenInclude(ra => ra.Amenity)
+                .Include(h => h.Amenities)
+                .Include(h => h.Reviews)
+                    .ThenInclude(r => r.User)
+                .FirstOrDefaultAsync(h => h.Id == id);
 
-        return Ok(_mapper.Map<HotelDetailDto>(hotel));
+            if (hotel == null)
+            {
+                return NotFound(new { message = $"Hotel with ID {id} not found." });
+            }
+
+            return Ok(_mapper.Map<HotelDetailDto>(hotel));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "An error occurred while retrieving hotel details.", error = ex.Message });
+        }
     }
 
     // GET: api/Hotels/5/rooms
@@ -185,6 +193,7 @@ public class HotelsController : ControllerBase
     {
         var rooms = await _context.Rooms
             .Include(r => r.RoomAmenities)
+                .ThenInclude(ra => ra.Amenity)
             .Where(r => r.HotelId == hotelId)
             .ToListAsync();
 
@@ -292,12 +301,12 @@ public class HotelsController : ControllerBase
     // PUT: api/Hotels/5  (Admin only)
     [HttpPut("{id}")]
     [Authorize(Roles = "Admin")]
-    public async Task<IActionResult> UpdateHotel(int id, [FromBody] UpdateHotelDto dto)
+    public async Task<ActionResult<HotelDto>> UpdateHotel(int id, UpdateHotelDto dto)
     {
-        if (!ModelState.IsValid)
-            return BadRequest(ModelState);
+        var hotel = await _context.Hotels
+            .Include(h => h.Amenities)
+            .FirstOrDefaultAsync(h => h.Id == id);
 
-        var hotel = await _context.Hotels.FindAsync(id);
         if (hotel == null)
             return NotFound();
 
@@ -315,6 +324,19 @@ public class HotelsController : ControllerBase
         hotel.CheckOutTime = dto.CheckOutTime ?? hotel.CheckOutTime;
         hotel.MainImageUrl = dto.MainImageUrl;
         hotel.UpdatedAt = DateTime.UtcNow;
+
+        // Update amenities
+        hotel.Amenities.Clear();
+        if (dto.AmenityIds != null && dto.AmenityIds.Any())
+        {
+            var amenities = await _context.Amenities
+                .Where(a => dto.AmenityIds.Contains(a.Id))
+                .ToListAsync();
+            foreach (var amenity in amenities)
+            {
+                hotel.Amenities.Add(amenity);
+            }
+        }
 
         await _context.SaveChangesAsync();
 

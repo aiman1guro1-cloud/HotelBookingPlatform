@@ -14,7 +14,7 @@ public class HotelDetailDto : HotelDto
     public string? Website { get; set; }
     public string? CheckInTime { get; set; }
     public string? CheckOutTime { get; set; }
-    public new List<RoomDto> Rooms { get; set; } = new();
+    public new List<RoomDetailDto> Rooms { get; set; } = new();
     public List<string> Amenities { get; set; } = new();
     public List<ReviewDto> Reviews { get; set; } = new();
 }

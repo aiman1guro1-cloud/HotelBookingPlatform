@@ -1,7 +1,10 @@
-import { Code2, User, Mail, Phone, Info } from 'lucide-react';
+import { Code2, User, Mail, Phone, Info, Building2, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './About.css';
 
 const About = () => {
+    const navigate = useNavigate();
+
     return (
         <div className="about-page">
             {/* Hero Section */}
@@ -33,6 +36,22 @@ const About = () => {
                         Whether you're looking for a luxury villa, a cozy cabin, or a convenient city apartment, our platform makes it effortless to search, compare, and reserve your ideal stay.
                         We prioritize user experience, offering a seamless booking flow, advanced filtering, and secure payment processing.
                     </p>
+                </div>
+
+                {/* Affiliation CTA Section */}
+                <div className="info-card affiliation-card glass-card fade-in-up">
+                    <div className="card-icon-wrapper secondary">
+                        <Building2 className="card-icon" size={28} />
+                    </div>
+                    <h2>Grow Your Business with Us</h2>
+                    <p className="mb-8">
+                        Do you want to be affiliated with the system so that the users/consumers/customers are aware that you are open for hotel booking? Join Us so that the customers can book to your hotel.
+                    </p>
+                    <div className="cta-action-box">
+                        <button className="btn btn-primary btn-lg cta-btn" onClick={() => navigate('/login?redirect=admin')}>
+                            Join Now <ChevronRight size={20} />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tech Stack */}

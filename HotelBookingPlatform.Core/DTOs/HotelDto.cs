@@ -97,4 +97,5 @@ public class UpdateHotelDto
     public string? CheckInTime { get; set; }
     public string? CheckOutTime { get; set; }
     public string? MainImageUrl { get; set; }
+    public List<int> AmenityIds { get; set; } = new();
 }

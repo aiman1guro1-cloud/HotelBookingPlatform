@@ -24,7 +24,10 @@ public class MappingProfile : Profile
         CreateMap<Hotel, HotelDetailDto>()
             .ForMember(dest => dest.Amenities,
                 opt => opt.MapFrom(src => src.Amenities.Select(a => a.Name).ToList()))
-            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()));
+            .ForMember(dest => dest.Status, opt => opt.MapFrom(src => src.Status.ToString()))
+            .ForMember(dest => dest.Rooms, opt => opt.MapFrom(src => src.Rooms))
+            .ForMember(dest => dest.PricePerNight,
+                opt => opt.MapFrom(src => src.Rooms.Any() ? src.Rooms.Min(r => r.PricePerNight) : 0));
 
         // Room mappings
         CreateMap<Room, RoomDto>()

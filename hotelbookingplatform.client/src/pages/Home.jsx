@@ -110,15 +110,17 @@ const Home = () => {
                                 onClick={() => navigate(`/hotels/${hotel.id}`)}
                                 style={{ cursor: 'pointer' }}
                             >
-                                <div 
-                                    className="card-image-box"
-                                    style={{ 
-                                        backgroundImage: `url(${hotel.mainImageUrl || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800'})`,
-                                        backgroundSize: 'cover',
-                                        backgroundPosition: 'center',
-                                        height: '200px'
-                                    }}
-                                >
+                                <div className="card-image-box">
+                                    <img 
+                                        src={hotel.mainImageUrl?.startsWith('http') ? hotel.mainImageUrl : `https://localhost:7240${hotel.mainImageUrl}`} 
+                                        alt={hotel.name}
+                                        className="card-img"
+                                        loading="lazy"
+                                        onError={(e) => {
+                                            e.target.onerror = null; 
+                                            e.target.src = 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&q=80&w=800';
+                                        }}
+                                    />
                                     <div className="card-badge">{hotel.status}</div>
                                 </div>
                                 <div className="card-content">

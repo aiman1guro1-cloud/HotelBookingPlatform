@@ -21,6 +21,7 @@ const HotelDetail = () => {
     const [hotel, setHotel] = useState(null);
     const [rooms, setRooms] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
     const [checkIn, setCheckIn] = useState('');
     const [checkOut, setCheckOut] = useState('');
     const [guests, setGuests] = useState(1);
@@ -29,14 +30,26 @@ const HotelDetail = () => {
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
+            setError(null);
             try {
+                if (!id || isNaN(id)) {
+                    throw new Error("Invalid Hotel ID provided.");
+                }
+
                 const [hotelRes, roomsRes] = await Promise.all([
                     getHotelById(id),
                     getRoomsByHotel(id),
                 ]);
+
+                if (!hotelRes.data) {
+                    throw new Error("Hotel not found in our records.");
+                }
+
                 setHotel(hotelRes.data);
                 setRooms(roomsRes.data || []);
-            } catch {
+            } catch (err) {
+                console.error("Error fetching hotel details:", err);
+                setError(err?.response?.data?.message || err.message || "An unexpected error occurred while loading the hotel.");
                 setHotel(null);
                 setRooms([]);
             } finally {
@@ -53,7 +66,7 @@ const HotelDetail = () => {
     };
 
     const handleBookRoom = (room) => {
-        if (!room.available) return;
+        if (!room.isAvailable) return;
         navigate('/checkout', {
             state: {
                 hotel,
@@ -72,7 +85,30 @@ const HotelDetail = () => {
         </div>
     );
 
-    if (!hotel) return <div className="container" style={{ padding: '4rem 0', textAlign: 'center' }}>Hotel not found.</div>;
+    if (error) return (
+        <div className="container error-container" style={{ padding: '8rem 1rem', textAlign: 'center' }}>
+            <div className="glass-card" style={{ padding: '3rem', maxWidth: '500px', margin: '0 auto' }}>
+                <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
+                <h2 style={{ marginBottom: '1rem', color: 'var(--danger)' }}>Oops! Something went wrong</h2>
+                <p style={{ marginBottom: '2rem', color: 'var(--gray)' }}>{error}</p>
+                <button className="btn btn-primary" onClick={() => navigate('/hotels')}>
+                    <ArrowLeft size={18} style={{ marginRight: '8px' }} /> Return to Hotel Listings
+                </button>
+            </div>
+        </div>
+    );
+
+    if (!hotel) return (
+        <div className="container" style={{ padding: '8rem 1rem', textAlign: 'center' }}>
+            <div className="glass-card" style={{ padding: '3rem', maxWidth: '500px', margin: '0 auto' }}>
+                <h2>Hotel Not Found</h2>
+                <p style={{ color: 'var(--gray)', marginTop: '1rem' }}>We couldn't find the hotel you're looking for. It might have been removed or the ID is incorrect.</p>
+                <button className="btn btn-primary mt-6" onClick={() => navigate('/hotels')}>
+                    View All Hotels
+                </button>
+            </div>
+        </div>
+    );
 
     return (
         <div className="hotel-detail-page">
@@ -89,8 +125,8 @@ const HotelDetail = () => {
                         </div>
                         <div className="hotel-detail-rating">
                             <Star size={20} fill="#F59E0B" color="#F59E0B" />
-                            <span className="rating-value">{hotel.rating}</span>
-                            <span className="review-count">({hotel.reviewCount} reviews)</span>
+                            <span className="rating-value">{hotel.starRating}</span>
+                            <span className="review-count">({hotel.reviews?.length || 0} reviews)</span>
                         </div>
                     </div>
                 </div>
@@ -149,24 +185,24 @@ const HotelDetail = () => {
                         {rooms.map((room, idx) => (
                             <div
                                 key={room.id}
-                                className={`room-card glass-card ${!room.available ? 'unavailable' : ''} animate-fade-in`}
+                                className={`room-card glass-card ${!room.isAvailable ? 'unavailable' : ''} animate-fade-in`}
                                 style={{ animationDelay: `${idx * 0.06}s` }}
                                 id={`room-card-${room.id}`}
                             >
                                 <div className="room-image-col">
                                     <div className="room-img-placeholder" style={{ background: `linear-gradient(135deg, hsl(${idx * 60 + 200}, 50%, 55%), hsl(${idx * 60 + 260}, 60%, 40%))` }}>
-                                        <span className="room-category-tag">{room.category}</span>
-                                        {!room.available && <span className="sold-out-tag">Sold Out</span>}
+                                        <span className="room-category-tag">{room.roomType}</span>
+                                        {!room.isAvailable && <span className="sold-out-tag">Sold Out</span>}
                                     </div>
                                 </div>
                                 <div className="room-info-col">
-                                    <h3 className="room-name">{room.name}</h3>
+                                    <h3 className="room-name">{room.roomType} — Room {room.roomNumber}</h3>
                                     <div className="room-meta">
-                                        <span>🛏 {room.beds}</span>
-                                        <span>📐 {room.size}</span>
-                                        <span>👥 Up to {room.maxGuests} guests</span>
+                                        <span>🛏 {room.bedCount || 1} {room.bedType || 'Bed'}{room.bedCount > 1 ? 's' : ''}</span>
+                                        {room.sizeInSquareMeters > 0 && <span>📐 {room.sizeInSquareMeters} m²</span>}
+                                        <span>👥 Up to {room.capacity} guests</span>
                                     </div>
-                                    <p className="room-desc">{room.description}</p>
+                                    {room.description && <p className="room-desc">{room.description}</p>}
                                     <div className="room-amenities">
                                         {room.amenities?.map(a => (
                                             <span key={a} className="room-amenity-tag">
@@ -177,19 +213,19 @@ const HotelDetail = () => {
                                 </div>
                                 <div className="room-booking-col">
                                     <div className="room-price">
-                                        <span className="price-value">${room.pricePerNight}</span>
+                                        <span className="price-value">₱{Number(room.pricePerNight).toLocaleString()}</span>
                                         <span className="price-per">per night</span>
                                     </div>
                                     {calcNights() > 0 && (
-                                        <div className="room-total">Total: <strong>${room.pricePerNight * calcNights()}</strong></div>
+                                        <div className="room-total">Total: <strong>₱{(room.pricePerNight * calcNights()).toLocaleString()}</strong></div>
                                     )}
                                     <button
-                                        className={`btn ${room.available ? 'btn-primary' : 'btn-disabled'} book-btn`}
-                                        disabled={!room.available}
+                                        className={`btn ${room.isAvailable ? 'btn-primary' : 'btn-disabled'} book-btn`}
+                                        disabled={!room.isAvailable}
                                         onClick={() => handleBookRoom(room)}
                                         id={`book-room-${room.id}`}
                                     >
-                                        {room.available ? <><ChevronRight size={16} /> Reserve Now</> : 'Unavailable'}
+                                        {room.isAvailable ? <><ChevronRight size={16} /> Reserve Now</> : 'Unavailable'}
                                     </button>
                                 </div>
                             </div>

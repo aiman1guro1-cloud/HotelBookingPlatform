@@ -88,6 +88,7 @@ const Checkout = () => {
                 phone: profile.phoneNumber || prev.phone
             }));
         } catch (err) {
+            console.error(err);
             setError("Failed to auto-fill. Please enter manually.");
         } finally {
             setLoadingProfile(false);
@@ -157,37 +158,24 @@ const Checkout = () => {
         else if (step === 2 && validateStep2()) setStep(3);
     };
 
-    const isGuestInfoValid = () =>
-        guestInfo.firstName && guestInfo.lastName && guestInfo.email && guestInfo.phone;
-
-    const isPaymentValid = () =>
-        paymentInfo.cardHolder && paymentInfo.cardNumber.replace(/\s/g, '').length >= 16 &&
-        paymentInfo.expiry.length === 5 && paymentInfo.cvv.length >= 3;
-
     const handleSubmit = async () => {
         setSubmitting(true);
         setError('');
         try {
             const bookingData = {
-                hotelId: hotel.id, roomId: room.id,
-                checkInDate: checkInTime, checkOutDate: checkOutTime,
+                roomId: room.id,
+                checkInDate: checkInTime,
+                checkOutDate: checkOutTime,
                 numberOfGuests: guests,
-                guestFirstName: guestInfo.firstName,
-                guestLastName: guestInfo.lastName,
-                guestEmail: guestInfo.email,
-                guestPhone: guestInfo.phone,
-                specialRequests: guestInfo.specialRequests,
-                totalAmount: grandTotal,
+                specialRequests: guestInfo.specialRequests
             };
             const response = await createBooking(bookingData);
-            const ref = response.data?.bookingReference || `HBP-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+            const ref = response.data?.booking?.bookingReference || response.data?.bookingReference || `HBP-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
             setBookingRef(ref);
             setBookingSuccess(true);
-        } catch {
-            // Mock success for demo
-            const ref = `HBP-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-            setBookingRef(ref);
-            setBookingSuccess(true);
+        } catch (err) {
+            console.error("Booking error:", err);
+            setError(err.response?.data || err.message || "Failed to create booking. Please try again.");
         } finally {
             setSubmitting(false);
         }

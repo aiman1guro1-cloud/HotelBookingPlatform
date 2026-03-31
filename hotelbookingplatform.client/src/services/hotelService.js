@@ -33,10 +33,12 @@ export const deleteRoom = (hotelId, roomId) => apiClient.delete(`/Hotels/${hotel
 export const getAmenities = () => apiClient.get('/Amenities');
 
 // Image Upload
-export const uploadHotelImage = (formData) => {
+export const uploadHotelImage = (formData, config = {}) => {
     return apiClient.post('/Hotels/upload-image', formData, {
+        ...config,
         headers: {
-            'Content-Type': 'multipart/form-data'
+            'Content-Type': 'multipart/form-data',
+            ...config.headers
         }
     });
 };

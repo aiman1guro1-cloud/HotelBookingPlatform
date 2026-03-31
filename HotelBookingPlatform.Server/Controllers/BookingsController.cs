@@ -261,8 +261,21 @@ public class BookingsController : ControllerBase
             }
 
             // Calculate total price
-            var numberOfNights = (bookingDto.CheckOutDate - bookingDto.CheckInDate).Days;
-            var totalPrice = room.PricePerNight * numberOfNights;
+            var duration = bookingDto.CheckOutDate - bookingDto.CheckInDate;
+            var numberOfNights = duration.Days;
+            decimal totalPrice;
+
+            if (numberOfNights > 0)
+            {
+                totalPrice = room.PricePerNight * numberOfNights;
+            }
+            else
+            {
+                // Hourly stay (less than 24 hours)
+                var hours = Math.Max(3, Math.Ceiling(duration.TotalHours));
+                var hourlyRate = Math.Round(room.PricePerNight / 10, 2);
+                totalPrice = hourlyRate * (decimal)hours;
+            }
 
             // Create booking
             var booking = new Booking
