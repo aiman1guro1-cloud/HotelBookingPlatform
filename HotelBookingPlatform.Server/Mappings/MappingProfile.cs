@@ -35,6 +35,7 @@ public class MappingProfile : Profile
                 opt => opt.MapFrom(src => src.Status == RoomStatus.Available));  // Now Enums is recognized
 
         CreateMap<Room, RoomDetailDto>()
+            .IncludeBase<Room, RoomDto>()
             .ForMember(dest => dest.Amenities,
                 opt => opt.MapFrom(src => src.RoomAmenities.Select(ra => ra.Amenity != null ? ra.Amenity.Name : string.Empty).ToList()));
 
